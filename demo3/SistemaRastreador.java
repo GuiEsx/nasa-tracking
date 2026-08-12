@@ -1,6 +1,8 @@
-package yuriProjetoDeSoftware;
+package classesUtilizadas;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -15,6 +17,9 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 
 class ApiHttpUtil {
     public static String lerResposta(URL url, String userAgent) throws Exception {
@@ -54,11 +59,105 @@ class ApiHttpUtil {
     }
 }
 
+class BackupDadosObjetos {
+    private static final String NOME_ARQUIVO = "dados_backup_objetos.txt";
+
+    private static Path localizarArquivo() {
+        Path caminhoDiretorio = Paths.get(System.getProperty("user.dir"));
+        Path caminhoArquivo = caminhoDiretorio.resolve(NOME_ARQUIVO);
+        if (Files.exists(caminhoArquivo)) {
+            return caminhoArquivo;
+        }
+
+        Path caminhoAlternativo = caminhoDiretorio.resolve("classesUtilizadas").resolve(NOME_ARQUIVO);
+        if (Files.exists(caminhoAlternativo)) {
+            return caminhoAlternativo;
+        }
+
+        return caminhoArquivo;
+    }
+
+    private static List<String> lerLinhas() {
+        try {
+            Path caminho = localizarArquivo();
+            if (!Files.exists(caminho)) {
+                return new ArrayList<>();
+            }
+            return Files.readAllLines(caminho);
+        } catch (Exception e) {
+            return new ArrayList<>();
+        }
+    }
+
+    public static Asteroide carregarAsteroide() {
+        for (String linha : lerLinhas()) {
+            if (linha.trim().isEmpty() || !linha.startsWith("Asteroide|")) {
+                continue;
+            }
+            String[] campos = linha.split("\\|");
+            if (campos.length >= 5) {
+                try {
+                    return new Asteroide(
+                            campos[1],
+                            new Distancia(Double.parseDouble(campos[2])),
+                            Boolean.parseBoolean(campos[3]),
+                            LocalDateTime.parse(campos[4], DateTimeFormatter.ISO_DATE_TIME)
+                    );
+                } catch (Exception ignored) {
+                }
+            }
+        }
+        return null;
+    }
+
+    public static Satelite carregarSatelite() {
+        for (String linha : lerLinhas()) {
+            if (linha.trim().isEmpty() || !linha.startsWith("Satelite|")) {
+                continue;
+            }
+            String[] campos = linha.split("\\|");
+            if (campos.length >= 5) {
+                try {
+                    return new Satelite(
+                            campos[1],
+                            new Distancia(Double.parseDouble(campos[2])),
+                            Double.parseDouble(campos[3]),
+                            LocalDateTime.parse(campos[4], DateTimeFormatter.ISO_DATE_TIME)
+                    );
+                } catch (Exception ignored) {
+                }
+            }
+        }
+        return null;
+    }
+
+    public static Cometa carregarCometa() {
+        for (String linha : lerLinhas()) {
+            if (linha.trim().isEmpty() || !linha.startsWith("Cometa|")) {
+                continue;
+            }
+            String[] campos = linha.split("\\|");
+            if (campos.length >= 5) {
+                try {
+                    return new Cometa(
+                            campos[1],
+                            new Distancia(Double.parseDouble(campos[2])),
+                            Double.parseDouble(campos[3]),
+                            LocalDateTime.parse(campos[4], DateTimeFormatter.ISO_DATE_TIME)
+                    );
+                } catch (Exception ignored) {
+                }
+            }
+        }
+        return null;
+    }
+}
+
 class ClienteNasaNeoWs {
 
     public static Asteroide buscarPrimeiroAsteroide() {
         try {
-            String urlNasa = "https://api.nasa.gov/neo/rest/v1/feed?start_date=2026-08-05&end_date=2026-08-05&api_key=DEMO_KEY";
+            String urlNasa = "https://api.nasa.gov/neo/rest/v1/feed?start_date=2026-08-12&end_date=2026-08-12&api_key=DEMO_KEY";
             URL url = URI.create(urlNasa).toURL();
             String textoJson = ApiHttpUtil.lerResposta(url, null);
 
@@ -66,18 +165,29 @@ class ClienteNasaNeoWs {
             String nome = textoJson.substring(indexNome, textoJson.indexOf("\"", indexNome));
 
             int indexPerigo = textoJson.indexOf("\"is_potentially_hazardous_asteroid\":") + 36;
-            String perigoTexto = textoJson.substring(indexPerigo, indexPerigo + 4);
-            boolean perigoso = perigoTexto.equals("true");
+            String perigoTexto = textoJson.substring(indexPerigo, indexPerigo + 5);
+            boolean perigoso = perigoTexto.startsWith("true");
 
             int indexDist = textoJson.indexOf("\"kilometers\":\"") + 14;
             String distStr = textoJson.substring(indexDist, textoJson.indexOf("\"", indexDist));
             double distanciaKm = Double.parseDouble(distStr);
-            
+
+            int indexEpoch = textoJson.indexOf("\"epoch_date_close_approach\":") + 29;
+            String epochStr = textoJson.substring(indexEpoch, textoJson.indexOf(",", indexEpoch));
+            long epochMillis = Long.parseLong(epochStr.trim());
+            LocalDateTime ultimoAvistamento = Instant.ofEpochMilli(epochMillis)
+                    .atOffset(ZoneOffset.UTC)
+                    .toLocalDateTime();
+
             Distancia distancia = new Distancia(distanciaKm * 1000.0);
-            return new Asteroide(nome, distancia, perigoso);
+            return new Asteroide(nome, distancia, perigoso, ultimoAvistamento);
 
         } catch (Exception e) {
-            System.out.println("Falha ao buscar dados na internet: " + e.getMessage());
+            System.out.println("Falha ao buscar dados na internet. Usando backup local do projeto.");
+            Asteroide backup = BackupDadosObjetos.carregarAsteroide();
+            if (backup != null) {
+                return backup;
+            }
             return null;
         }
     }
@@ -116,13 +226,21 @@ class ClienteCelestrak {
             int indexNome = textoJson.indexOf("\"OBJECT_NAME\":\"") + 15;
             String nome = textoJson.substring(indexNome, textoJson.indexOf("\"", indexNome));
 
-            Distancia altitudeAtual = new Distancia(420000.0);
-            double decaimentoSimulado = 50.0;
+            int indexEpoch = textoJson.indexOf("\"EPOCH\":\"") + 10;
+            String epochTexto = textoJson.substring(indexEpoch, textoJson.indexOf("\"", indexEpoch));
+            LocalDateTime ultimoAvistamento = LocalDateTime.parse(epochTexto, DateTimeFormatter.ISO_DATE_TIME);
 
-            return new Satelite(nome, altitudeAtual, decaimentoSimulado);
+            Distancia altitudeAtual = new Distancia(420000.0);
+            double decaimentoSimulado = 8.5;
+
+            return new Satelite(nome, altitudeAtual, decaimentoSimulado, ultimoAvistamento);
 
         } catch (Exception e) {
-            System.out.println("Falha ao buscar o Satélite na API: " + e.getMessage());
+            System.out.println("Falha ao buscar o Satélite na API. Usando backup local do projeto.");
+            Satelite backup = BackupDadosObjetos.carregarSatelite();
+            if (backup != null) {
+                return backup;
+            }
             return null;
         }
     }
@@ -139,13 +257,21 @@ class ClienteNasaSbdb {
             int indexNome = textoJson.indexOf("\"fullname\":\"") + 12;
             String nome = textoJson.substring(indexNome, textoJson.indexOf("\"", indexNome));
 
-            double tamanhoNucleoKm = 11.0;
-            Distancia distanciaPerielio = new Distancia(5.0 * 384400000.0); 
+            int indexUltimoObs = textoJson.indexOf("\"last_obs\":\"") + 13;
+            String ultimoObsTexto = textoJson.substring(indexUltimoObs, textoJson.indexOf("\"", indexUltimoObs));
+            LocalDateTime ultimoAvistamento = LocalDateTime.parse(ultimoObsTexto + "T00:00:00");
 
-            return new Cometa(nome, distanciaPerielio, tamanhoNucleoKm);
+            double tamanhoNucleoKm = 11.0;
+            Distancia distanciaPerielio = new Distancia(5.0 * 384400000.0);
+
+            return new Cometa(nome, distanciaPerielio, tamanhoNucleoKm, ultimoAvistamento);
 
         } catch (Exception e) {
-            System.out.println("Falha ao buscar o Cometa na API: " + e.getMessage());
+            System.out.println("Falha ao buscar o Cometa na API. Usando backup local do projeto.");
+            Cometa backup = BackupDadosObjetos.carregarCometa();
+            if (backup != null) {
+                return backup;
+            }
             return null;
         }
     }
@@ -174,11 +300,17 @@ class ObjetoEspacial {
     protected String nome;
     protected Distancia distanciaAtual;
     protected String tipo;
+    protected LocalDateTime ultimoAvistamento;
 
     public ObjetoEspacial(String nome, Distancia distanciaAtual, String tipo) {
+        this(nome, distanciaAtual, tipo, LocalDateTime.now());
+    }
+
+    public ObjetoEspacial(String nome, Distancia distanciaAtual, String tipo, LocalDateTime ultimoAvistamento) {
         this.nome = nome;
         this.distanciaAtual = distanciaAtual;
         this.tipo = tipo;
+        this.ultimoAvistamento = ultimoAvistamento;
     }
 
     public String getNome() { 
@@ -191,14 +323,22 @@ class ObjetoEspacial {
     
     public String getTipo() { 
         return this.tipo; 
-    } 
+    }
+
+    public LocalDateTime getUltimoAvistamento() {
+        return this.ultimoAvistamento;
+    }
 }
 
 class Asteroide extends ObjetoEspacial {
     private boolean ePerigosoPelaNasa;
 
     public Asteroide(String nome, Distancia distancia, boolean perigoso) {
-        super(nome, distancia, "Asteroide"); 
+        this(nome, distancia, perigoso, LocalDateTime.now());
+    }
+
+    public Asteroide(String nome, Distancia distancia, boolean perigoso, LocalDateTime ultimoAvistamento) {
+        super(nome, distancia, "Asteroide", ultimoAvistamento);
         this.ePerigosoPelaNasa = perigoso;
     }
 
@@ -218,7 +358,11 @@ class Satelite extends ObjetoEspacial {
     private double decaimentoOrbitalMetrosPorDia;
 
     public Satelite(String nome, Distancia altitude, double decaimento) {
-        super(nome, altitude, "Satélite"); 
+        this(nome, altitude, decaimento, LocalDateTime.now());
+    }
+
+    public Satelite(String nome, Distancia altitude, double decaimento, LocalDateTime ultimoAvistamento) {
+        super(nome, altitude, "Satélite", ultimoAvistamento);
         this.decaimentoOrbitalMetrosPorDia = decaimento;
     }
 
@@ -234,7 +378,11 @@ class Cometa extends ObjetoEspacial {
     private double tamanhoNucleoKm;
 
     public Cometa(String nome, Distancia distancia, double tamanhoNucleo) {
-        super(nome, distancia, "Cometa"); 
+        this(nome, distancia, tamanhoNucleo, LocalDateTime.now());
+    }
+
+    public Cometa(String nome, Distancia distancia, double tamanhoNucleo, LocalDateTime ultimoAvistamento) {
+        super(nome, distancia, "Cometa", ultimoAvistamento);
         this.tamanhoNucleoKm = tamanhoNucleo;
     }
 
@@ -247,8 +395,6 @@ class Cometa extends ObjetoEspacial {
 }
 
 public class SistemaRastreador {
-
-    private static final int[] ORDEM_RISCO = {3, 2, 1, 0};
 
     private static void limparTela() {
         try {
@@ -283,18 +429,15 @@ public class SistemaRastreador {
         private final String descricao;
         private final double distanciaAtualKm;
         private final LocalDateTime momentoConsulta;
-        private final LocalDateTime momentoReferencia;
 
         public PosicaoAtual(String descricao, double distanciaAtualKm, LocalDateTime momentoReferencia, LocalDateTime momentoConsulta) {
             this.descricao = descricao;
             this.distanciaAtualKm = distanciaAtualKm;
-            this.momentoReferencia = momentoReferencia;
             this.momentoConsulta = momentoConsulta;
         }
 
         public String getDescricao() { return descricao; }
         public double getDistanciaAtualKm() { return distanciaAtualKm; }
-        public LocalDateTime getMomentoReferencia() { return momentoReferencia; }
         public LocalDateTime getMomentoConsulta() { return momentoConsulta; }
     }
 
@@ -302,32 +445,71 @@ public class SistemaRastreador {
         return dataHora.format(DateTimeFormatter.ofPattern("dd/MM/yyyy 'às' HH:mm"));
     }
 
+    private static String formatarDistancia(double distanciaKm, int opcaoUnidade) {
+        if (opcaoUnidade == 1) {
+            return String.format("%.2f km", distanciaKm);
+        } else if (opcaoUnidade == 2) {
+            return String.format("%.2f mi", distanciaKm / 1.60934);
+        } else if (opcaoUnidade == 3) {
+            return String.format("%.4f LD", distanciaKm / 384400.0);
+        }
+        return String.format("%.2f km", distanciaKm);
+    }
+
+    private static LocalDateTime obterUltimoAvistamento(ObjetoEspacial objeto, LocalDateTime agora) {
+        if (objeto.getUltimoAvistamento() != null) {
+            return objeto.getUltimoAvistamento();
+        }
+
+        long minutosAtras;
+
+        if (objeto instanceof Asteroide) {
+            minutosAtras = 30 + Math.round(objeto.getDistancia().emKilometros() / 800000.0);
+        } else if (objeto instanceof Satelite) {
+            minutosAtras = 20 + Math.round(objeto.getDistancia().emKilometros() / 50000.0);
+        } else if (objeto instanceof Cometa) {
+            minutosAtras = 60 + Math.round(objeto.getDistancia().emKilometros() / 1000000.0);
+        } else {
+            minutosAtras = 90;
+        }
+
+        return agora.minusMinutes(Math.min(minutosAtras, 720));
+    }
+
+    private static double calcularTaxaMovimentoPorMinuto(ObjetoEspacial objeto) {
+        double distanciaBaseKm = objeto.getDistancia().emKilometros();
+
+        if (objeto instanceof Asteroide) {
+            return distanciaBaseKm * 1.0e-10;
+        }
+        if (objeto instanceof Satelite) {
+            return distanciaBaseKm * 5.0e-10;
+        }
+        if (objeto instanceof Cometa) {
+            return distanciaBaseKm * 1.0e-11;
+        }
+
+        return distanciaBaseKm * 1.0e-10;
+    }
+
     private static PosicaoAtual calcularPosicaoAtual(ObjetoEspacial objeto, LocalDateTime referencia, LocalDateTime consulta) {
         double distanciaBaseKm = objeto.getDistancia().emKilometros();
         double minutos = Math.max(0, ChronoUnit.MINUTES.between(referencia, consulta));
-        double fatorMovimento = 0.0;
+        double deslocamentoKm = minutos * calcularTaxaMovimentoPorMinuto(objeto);
+        double distanciaAtualKm = Math.max(0.0, distanciaBaseKm - deslocamentoKm);
         String descricao;
 
         if (objeto instanceof Asteroide) {
-            fatorMovimento = 0.04 + (distanciaBaseKm / 250000000.0);
-            double distanciaAtualKm = distanciaBaseKm - (minutos * fatorMovimento * 1000.0);
-            distanciaAtualKm = Math.max(5000.0, distanciaAtualKm);
             descricao = "órbita heliocêntrica em translação, com deslocamento progressivo em relação ao observador.";
             return new PosicaoAtual(descricao, distanciaAtualKm, referencia, consulta);
         }
 
         if (objeto instanceof Satelite) {
-            fatorMovimento = 0.12 + (distanciaBaseKm / 1500000.0);
-            double distanciaAtualKm = distanciaBaseKm - (minutos * fatorMovimento * 200.0);
-            distanciaAtualKm = Math.max(350000.0, distanciaAtualKm);
             descricao = "posição orbital em torno da Terra, com variação de fase por TLE aproximado.";
             return new PosicaoAtual(descricao, distanciaAtualKm, referencia, consulta);
         }
 
         if (objeto instanceof Cometa) {
-            fatorMovimento = 0.08 + (distanciaBaseKm / 180000000.0);
-            double distanciaAtualKm = distanciaBaseKm - (minutos * fatorMovimento * 1600.0);
-            distanciaAtualKm = Math.max(1500000.0, distanciaAtualKm);
             descricao = "trajetória cometária em deslocamento solar, com aproximação gradual ao periélio.";
             return new PosicaoAtual(descricao, distanciaAtualKm, referencia, consulta);
         }
@@ -368,7 +550,7 @@ public class SistemaRastreador {
         return quantidade;
     }
 
-    private static String lerNomeObjeto(Scanner leitor) {
+    private static String lerNomeObjeto(Scanner leitor, String tipo) {
         String nome;
         do {
             System.out.print("Qual o nome do objeto? (Ex.: 2026-AB): ");
@@ -387,17 +569,20 @@ public class SistemaRastreador {
 
         int qtdAsteroides = lerQuantidadeObjetos(leitor, "asteróides");
         for (int i = 0; i < qtdAsteroides; i++) {
-            objetos.add(new ObjetoRastreado(lerNomeObjeto(leitor), "Asteroide", asteroide.avaliarRisco()));
+            String nome = lerNomeObjeto(leitor, "Asteroide");
+            objetos.add(new ObjetoRastreado(nome, "Asteroide", asteroide.avaliarRisco()));
         }
 
         int qtdSatelites = lerQuantidadeObjetos(leitor, "satélites");
         for (int i = 0; i < qtdSatelites; i++) {
-            objetos.add(new ObjetoRastreado(lerNomeObjeto(leitor), "Satélite", satelite.avaliarRisco()));
+            String nome = lerNomeObjeto(leitor, "Satélite");
+            objetos.add(new ObjetoRastreado(nome, "Satélite", satelite.avaliarRisco()));
         }
 
         int qtdCometas = lerQuantidadeObjetos(leitor, "cometas");
         for (int i = 0; i < qtdCometas; i++) {
-            objetos.add(new ObjetoRastreado(lerNomeObjeto(leitor), "Cometa", cometa.avaliarRisco()));
+            String nome = lerNomeObjeto(leitor, "Cometa");
+            objetos.add(new ObjetoRastreado(nome, "Cometa", cometa.avaliarRisco()));
         }
 
         objetos.sort(Comparator.comparingInt(obj -> {
@@ -446,13 +631,22 @@ public class SistemaRastreador {
 
         // Loop do Painel 1 (Menu Principal)
         while (executando) {
-            System.out.println("\n========= Bem-vindo ao ROVI ==============");
+            System.out.println("\n============== Bem-vindo ao ROVI =============");
             System.out.println("1 - Ver os objetos mais próximos");
             System.out.println("2 - Rastrear objetos");
             System.out.println("3 - Consultar Registros diários");
             System.out.println("4 - Sair do sistema");
             System.out.print("Digite sua escolha (1/2/3/4): ");
-            int opcaoPainel1 = Integer.parseInt(leitor.nextLine().trim());
+
+            int opcaoPainel1;
+            try {
+                opcaoPainel1 = Integer.parseInt(leitor.nextLine().trim());
+            } catch (NumberFormatException e) {
+                System.out.println("\nOpção inválida! Voltando ao menu principal.");
+                limparTela();
+                continue;
+            }
+
             limparTela();
 
             switch (opcaoPainel1) {
@@ -475,7 +669,7 @@ public class SistemaRastreador {
                     executando = false;
                     break;
                 default:
-                    System.out.println("\nOpção inválida! Tente novamente.");
+                    System.out.println("\nOpção inválida! Voltando ao menu principal.");
             }
         }
 
@@ -487,7 +681,7 @@ public class SistemaRastreador {
         boolean noPainel2 = true;
 
         while (noPainel2) {
-            System.out.println("\n========= Painel 2: Objetos Mais Próximos ==========");
+            System.out.println("\n============== Painel 2: Objetos Mais Próximos ==============");
             System.out.println("1 - Ver cometa mais próximo");
             System.out.println("2 - Ver satélite mais próximo");
             System.out.println("3 - Ver asteroide mais próximo");
@@ -495,7 +689,14 @@ public class SistemaRastreador {
             System.out.println("5 - Voltar ao menu principal");
             System.out.print("Digite sua escolha (1/2/3/4/5): ");
 
-            int opcaoPainel2 = Integer.parseInt(leitor.nextLine().trim());
+            int opcaoPainel2;
+            try {
+                opcaoPainel2 = Integer.parseInt(leitor.nextLine().trim());
+            } catch (NumberFormatException e) {
+                System.out.println("\nOpção inválida! Voltando ao menu principal.");
+                noPainel2 = false;
+                break;
+            }
             limparTela();
 
             if (opcaoPainel2 == 5) {
@@ -519,22 +720,19 @@ public class SistemaRastreador {
                     objetoSelecionado = obterObjetoMaisProximoGlobal(asteroide, satelite, cometa);
                     break;
                 default:
-                    System.out.println("\nOpção inválida! Tente novamente.");
-                    continue;
+                    System.out.println("\nOpção inválida! Voltando ao menu principal.");
+                    noPainel2 = false;
+                    break;
+            }
+
+            if (!noPainel2 && opcaoPainel2 != 5) {
+                break;
             }
 
             if (objetoSelecionado != null) {
                 int unidade = pedirUnidadeDistancia(leitor);
                 limparTela();
                 exibirRelatorio(objetoSelecionado, unidade);
-
-                LocalDateTime momentoReferencia = LocalDateTime.now().minusHours(2);
-                PosicaoAtual posicaoAtual = calcularPosicaoAtual(objetoSelecionado, momentoReferencia, LocalDateTime.now());
-                System.out.println("\nOnde você está agora?");
-                System.out.println("Rastreado em: " + formatarDataHora(momentoReferencia));
-                System.out.println("Consulta em: " + formatarDataHora(posicaoAtual.getMomentoConsulta()));
-                System.out.println("Distância atual: " + String.format("%.2f km", posicaoAtual.getDistanciaAtualKm()));
-                System.out.println("Posição: " + posicaoAtual.getDescricao());
 
                 int opcaoAposRelatorio = perguntarOpcaoAposSaida(leitor);
                 limparTela();
@@ -582,7 +780,7 @@ public class SistemaRastreador {
     }
 
     private static void executarPainelPosicaoAtual(Scanner leitor, Asteroide asteroide, Satelite satelite, Cometa cometa) {
-        System.out.println("\n========= Onde você está agora? ==========");
+        System.out.println("\n============== Onde você está agora? ==============");
         System.out.println("1 - Ver asteroide atual");
         System.out.println("2 - Ver satélite atual");
         System.out.println("3 - Ver cometa atual");
@@ -590,7 +788,13 @@ public class SistemaRastreador {
         System.out.println("5 - Voltar ao menu principal");
         System.out.print("Digite sua escolha (1/2/3/4/5): ");
 
-        int opcaoPosicao = Integer.parseInt(leitor.nextLine().trim());
+        int opcaoPosicao;
+        try {
+            opcaoPosicao = Integer.parseInt(leitor.nextLine().trim());
+        } catch (NumberFormatException e) {
+            System.out.println("\nOpção inválida! Voltando ao menu principal.");
+            return;
+        }
         limparTela();
 
         if (opcaoPosicao == 5) {
@@ -621,16 +825,32 @@ public class SistemaRastreador {
             limparTela();
             exibirRelatorio(objetoSelecionado, unidade);
 
-            LocalDateTime momentoReferencia = LocalDateTime.now().minusHours(2);
-            PosicaoAtual posicaoAtual = calcularPosicaoAtual(objetoSelecionado, momentoReferencia, LocalDateTime.now());
-            System.out.println("\nOnde você está agora?");
+            LocalDateTime agora = LocalDateTime.now();
+            LocalDateTime momentoReferencia = obterUltimoAvistamento(objetoSelecionado, agora);
+            PosicaoAtual posicaoAtual = calcularPosicaoAtual(objetoSelecionado, momentoReferencia, agora);
+            System.out.println("\n============== Onde você está agora? ==============");
             System.out.println("Rastreado em: " + formatarDataHora(momentoReferencia));
             System.out.println("Consulta em: " + formatarDataHora(posicaoAtual.getMomentoConsulta()));
-            System.out.println("Distância atual: " + String.format("%.2f km", posicaoAtual.getDistanciaAtualKm()));
+            System.out.println("Distância atual: " + formatarDistancia(posicaoAtual.getDistanciaAtualKm(), unidade));
             System.out.println("Posição: " + posicaoAtual.getDescricao());
 
-            System.out.println("\nPressione Enter para voltar ao menu principal...");
-            leitor.nextLine();
+            int opcaoAposRelatorio = perguntarOpcaoAposSaida(leitor);
+            limparTela();
+
+            switch (opcaoAposRelatorio) {
+                case 1:
+                    executarPainelPosicaoAtual(leitor, asteroide, satelite, cometa);
+                    break;
+                case 2:
+                    return;
+                case 3:
+                    System.out.println("\nSaindo da aplicação... Até logo!");
+                    System.exit(0);
+                    break;
+                default:
+                    System.out.println("\nOpção inválida. Voltando ao menu principal.");
+                    return;
+            }
         }
     }
 
@@ -654,14 +874,14 @@ public class SistemaRastreador {
         String distanciaFormatada;
 
         if (opcaoUnidade == 1) {
-            distanciaFormatada = String.format("%.2f km", dist.emKilometros());
+            distanciaFormatada = formatarDistancia(dist.emKilometros(), 1);
         } else if (opcaoUnidade == 2) {
-            distanciaFormatada = String.format("%.2f mi", dist.emMilhas());
+            distanciaFormatada = formatarDistancia(dist.emKilometros(), 2);
         } else if (opcaoUnidade == 3) {
-            distanciaFormatada = String.format("%.4f LD", dist.emDistanciasLunares());
+            distanciaFormatada = formatarDistancia(dist.emKilometros(), 3);
         } else {
             System.out.println("Opção de unidade inválida. Exibindo padrão em km.");
-            distanciaFormatada = String.format("%.2f km", dist.emKilometros());
+            distanciaFormatada = formatarDistancia(dist.emKilometros(), 1);
         }
 
         NivelRisco risco = NivelRisco.BAIXO;
