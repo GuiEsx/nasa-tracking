@@ -1,7 +1,0 @@
-#==#==#    =======================================     Aula 3    ===========================================     #==#==#
-
-    * Pesquisar sobre aprendizado com java para desenvolvimento de software
-    - Pontos como: Herança, Interface, arquitetura de codigo, ...
-
-
-* Fazer menu no console, implementar no "read.me"
