@@ -51,6 +51,14 @@ class TrackedObjectRegistryTest {
     }
 
     @Test
+    void buscaObjetoPorNomeIgnoraEspacosECapitalizacao() {
+        Asteroid asteroid = new Asteroid("3542519", "2010 PK9", Distance.ofLunarDistances(7.5), false);
+        registry.adicionar(asteroid);
+
+        assertEquals(asteroid, registry.buscarPorNome("  2010 pk9  ").orElseThrow());
+    }
+
+    @Test
     void testAdicionarTodosColecaoMistaComIdsDuplicados() {
         Asteroid a1 = new Asteroid("AST-1", "Asteroide Alfa", Distance.ofLunarDistances(10.0), false);
         Asteroid a1Recente = new Asteroid("AST-1", "Asteroide Alfa (V2)", Distance.ofLunarDistances(9.8), false);

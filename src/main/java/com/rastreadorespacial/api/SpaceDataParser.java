@@ -3,6 +3,7 @@ package com.rastreadorespacial.api;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rastreadorespacial.domain.Asteroid;
+import com.rastreadorespacial.domain.Comet;
 import com.rastreadorespacial.domain.Distance;
 import com.rastreadorespacial.domain.Satellite;
 
@@ -112,6 +113,60 @@ public final class SpaceDataParser {
         }
 
         return satelites;
+    }
+
+    public static List<Comet> parseSbdb(String rawJson) {
+        if (rawJson == null || rawJson.isBlank()) return List.of();
+
+        List<Comet> cometas = new ArrayList<>();
+        try {
+            JsonNode rootNode = OBJECT_MAPPER.readTree(rawJson);
+            if (!rootNode.isArray()) rootNode = OBJECT_MAPPER.createArrayNode().add(rootNode);
+            for (JsonNode resposta : rootNode) {
+                JsonNode objeto = resposta.path("object");
+                String kind = objeto.path("kind").asText("");
+                if (!(kind.equals("cn") || kind.equals("cu"))) continue;
+
+                String id = objeto.path("des").asText("");
+                String nome = objeto.path("fullname").asText(objeto.path("shortname").asText(id));
+                Double perihelioAu = valorDoElemento(resposta.path("orbit").path("elements"), "q");
+                if (id.isBlank() || perihelioAu == null || perihelioAu <= 0) continue;
+
+                Double diametro = valorDoParametro(resposta.path("phys_par"), "diameter");
+                cometas.add(new Comet(id, nome, Distance.ofKilometers(perihelioAu * 149_597_870.7), diametro));
+            }
+        } catch (IOException e) {
+            System.err.println("Aviso: Falha ao processar JSON da NASA SBDB: " + e.getMessage());
+        }
+        return cometas;
+    }
+
+    private static Double valorDoElemento(JsonNode elementos, String nome) {
+        if (!elementos.isArray()) return null;
+        for (JsonNode elemento : elementos) {
+            if (nome.equals(elemento.path("name").asText(""))) return numero(elemento.path("value"));
+        }
+        return null;
+    }
+
+    private static Double valorDoParametro(JsonNode parametros, String nome) {
+        if (!parametros.isArray()) return null;
+        for (JsonNode parametro : parametros) {
+            if (nome.equals(parametro.path("name").asText(""))) return numero(parametro.path("value"));
+        }
+        return null;
+    }
+
+    private static Double numero(JsonNode node) {
+        if (node.isNumber()) return node.asDouble();
+        if (node.isTextual()) {
+            try {
+                return Double.parseDouble(node.asText());
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+        return null;
     }
 }
 

@@ -16,11 +16,13 @@ public final class AppConfig {
     public static final String NEOWS_BASE_URL = "https://api.nasa.gov/neo/rest/v1/feed";
     public static final String APOD_BASE_URL = "https://api.nasa.gov/planetary/apod";
     public static final String CELESTRAK_BASE_URL = "https://celestrak.org/NORAD/elements/gp.php";
+    public static final String SBDB_BASE_URL = "https://ssd-api.jpl.nasa.gov/sbdb.api";
 
     public static final Path DATA_DIR = Path.of("data");
     public static final Path NEOWS_DATA_DIR = DATA_DIR.resolve("neows");
     public static final Path APOD_DATA_DIR = DATA_DIR.resolve("apod");
     public static final Path CELESTRAK_DATA_DIR = DATA_DIR.resolve("celestrak");
+    public static final Path SBDB_DATA_DIR = DATA_DIR.resolve("sbdb");
 
     public static final int MAX_RETRY_ATTEMPTS = 3;
     public static final Duration INITIAL_RETRY_DELAY = Duration.ofSeconds(2);
@@ -46,6 +48,7 @@ public final class AppConfig {
             Files.createDirectories(NEOWS_DATA_DIR);
             Files.createDirectories(APOD_DATA_DIR);
             Files.createDirectories(CELESTRAK_DATA_DIR);
+            Files.createDirectories(SBDB_DATA_DIR);
         } catch (IOException e) {
             System.err.println("Aviso: Falha ao criar diretórios de dados locais: " + e.getMessage());
         }

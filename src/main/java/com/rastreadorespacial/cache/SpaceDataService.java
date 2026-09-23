@@ -43,11 +43,43 @@ public class SpaceDataService {
      * @throws SpaceApiException se a API falhar e não houver cache local disponível
      */
     public CachedDataResult fetch(String source, SpaceDataClient client) throws SpaceApiException {
+        return fetch(source, client, false);
+    }
+
+    /**
+     * Busca dados permitindo forçar uma nova chamada à API antes do fallback para cache.
+     *
+     * @param source nome da fonte
+     * @param client cliente da API
+     * @param forceRefresh true para ignorar o cache na primeira tentativa
+     * @return resultado da API ou do cache de fallback
+     * @throws SpaceApiException se a API falhar e não houver cache local
+     */
+    public CachedDataResult fetch(String source, SpaceDataClient client, boolean forceRefresh) throws SpaceApiException {
         if (source == null || source.isBlank()) {
             throw new IllegalArgumentException("A fonte (source) não pode ser nula ou vazia.");
         }
         if (client == null) {
             throw new IllegalArgumentException("O cliente (SpaceDataClient) não pode ser nulo.");
+        }
+
+        Optional<CachedDataResult> cachedOptional = rawDataStore.loadMostRecent(source);
+        if (!forceRefresh && cachedOptional.isPresent()) {
+            CachedDataResult cached = cachedOptional.get();
+            System.out.println(String.format(
+                    "[AVISO] Usando dados locais de %s para %s (arquivo de %s)",
+                    source,
+                    source.toUpperCase(),
+                    cached.dataDoArquivo()
+            ));
+            return new CachedDataResult(
+                    cached.source(),
+                    cached.rawJson(),
+                    true,
+                    cached.dataDoArquivo(),
+                    1,
+                    false
+            );
         }
 
         try {
@@ -70,7 +102,7 @@ public class SpaceDataService {
             );
         } catch (SpaceApiException e) {
             boolean isPersistent429 = e.getStatusCode() == 429;
-            Optional<CachedDataResult> cachedOptional = rawDataStore.loadMostRecent(source);
+            cachedOptional = rawDataStore.loadMostRecent(source);
 
             if (cachedOptional.isPresent()) {
                 CachedDataResult cached = cachedOptional.get();
@@ -79,7 +111,7 @@ public class SpaceDataService {
                         : e.getMessage();
 
                 System.out.println(String.format(
-                        "[AVISO] Falha ao buscar %s da API (%s), usando cache local de %s",
+                    "[AVISO] Não foi possível atualizar %s pela API (%s); usando cache local de %s",
                         source, motivo, cached.dataDoArquivo()
                 ));
 

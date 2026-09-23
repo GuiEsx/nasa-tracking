@@ -103,6 +103,10 @@ public final class MenuNavigator {
         return output;
     }
 
+    public Scanner scanner() {
+        return scanner;
+    }
+
     private void limparTela() {
         output.println();
         output.println("========================================");

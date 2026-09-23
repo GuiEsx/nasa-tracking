@@ -42,7 +42,7 @@ public final class ConsultarFeedsScreen extends AbstractScreen {
 
     private void imprimirStatus() {
         Map<String, CachedDataResult> status = context.ultimoCarregamento();
-        for (String source : new String[]{"neows", "apod", "celestrak"}) {
+        for (String source : new String[]{"neows", "apod", "celestrak", "sbdb"}) {
             CachedDataResult result = status.get(source);
             if (result == null) {
                 navigator.output().println(source + ": ainda não carregado.");

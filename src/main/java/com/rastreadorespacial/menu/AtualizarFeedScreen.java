@@ -16,13 +16,14 @@ public final class AtualizarFeedScreen extends AbstractScreen {
         navigator.output().println("1 - NeoWs");
         navigator.output().println("2 - APOD");
         navigator.output().println("3 - Celestrak");
+        navigator.output().println("4 - NASA SBDB (cometas)");
         navigator.output().println("0 - Voltar");
         navigator.output().println("Digite sua escolha:");
     }
 
     @Override
     public void tratarEscolha(String entrada) {
-        Integer escolha = numero(entrada, 3);
+        Integer escolha = numero(entrada, 4);
         if (escolha == null) return;
         if (escolha == 0) {
             navigator.voltar();
@@ -32,6 +33,7 @@ public final class AtualizarFeedScreen extends AbstractScreen {
             case 1 -> "neows";
             case 2 -> "apod";
             case 3 -> "celestrak";
+            case 4 -> "sbdb";
             default -> "";
         };
         context.atualizar(source);

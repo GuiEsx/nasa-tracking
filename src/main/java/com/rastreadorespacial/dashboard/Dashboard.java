@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rastreadorespacial.api.ApodClient;
 import com.rastreadorespacial.api.CelestrakClient;
 import com.rastreadorespacial.api.NeoWsClient;
+import com.rastreadorespacial.api.SbdbClient;
 import com.rastreadorespacial.api.SpaceApiException;
 import com.rastreadorespacial.api.SpaceDataClient;
 import com.rastreadorespacial.api.SpaceDataParser;
@@ -40,11 +41,12 @@ public final class Dashboard {
     private final SpaceDataClient neoWsClient;
     private final SpaceDataClient apodClient;
     private final SpaceDataClient celestrakClient;
+    private final SpaceDataClient sbdbClient;
     private final PrintStream output;
     private final TrackedObjectRegistry registry;
 
     public Dashboard() {
-        this(new SpaceDataService(), new NeoWsClient(), new ApodClient(), new CelestrakClient(), System.out);
+        this(new SpaceDataService(), new NeoWsClient(), new ApodClient(), new CelestrakClient(), new SbdbClient(), System.out);
     }
 
     public Dashboard(SpaceDataService dataService,
@@ -52,10 +54,20 @@ public final class Dashboard {
                      SpaceDataClient apodClient,
                      SpaceDataClient celestrakClient,
                      PrintStream output) {
+        this(dataService, neoWsClient, apodClient, celestrakClient, () -> "[]", output);
+    }
+
+    public Dashboard(SpaceDataService dataService,
+                     SpaceDataClient neoWsClient,
+                     SpaceDataClient apodClient,
+                     SpaceDataClient celestrakClient,
+                     SpaceDataClient sbdbClient,
+                     PrintStream output) {
         this.dataService = Objects.requireNonNull(dataService, "O serviço de dados não pode ser nulo.");
         this.neoWsClient = Objects.requireNonNull(neoWsClient, "O cliente NeoWs não pode ser nulo.");
         this.apodClient = Objects.requireNonNull(apodClient, "O cliente APOD não pode ser nulo.");
         this.celestrakClient = Objects.requireNonNull(celestrakClient, "O cliente Celestrak não pode ser nulo.");
+        this.sbdbClient = Objects.requireNonNull(sbdbClient, "O cliente SBDB não pode ser nulo.");
         this.output = Objects.requireNonNull(output, "A saída do dashboard não pode ser nula.");
         this.registry = new TrackedObjectRegistry();
     }
@@ -94,6 +106,16 @@ public final class Dashboard {
             registrarAvisoDeCache(result, "satélites", avisosCache);
         } catch (SpaceApiException e) {
             output.println("[ERRO] Celestrak indisponível: " + e.getMessage());
+        }
+
+        try {
+            CachedDataResult result = dataService.fetch("sbdb", sbdbClient);
+            List<Comet> cometas = SpaceDataParser.parseSbdb(result.rawJson());
+            registry.adicionarTodos(cometas);
+            dadosDisponiveis |= !cometas.isEmpty();
+            registrarAvisoDeCache(result, "cometas", avisosCache);
+        } catch (SpaceApiException e) {
+            output.println("[ERRO] SBDB indisponível: " + e.getMessage());
         }
 
         if (!dadosDisponiveis) {

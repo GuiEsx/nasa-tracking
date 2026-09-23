@@ -70,6 +70,22 @@ public class TrackedObjectRegistry {
     }
 
     /**
+     * Busca um objeto pelo nome apresentado ao usuário, sem diferenciar maiúsculas e minúsculas.
+     *
+     * @param nome nome do objeto
+     * @return Optional contendo o objeto se presente, ou Optional.empty()
+     */
+    public Optional<SpaceObject> buscarPorNome(String nome) {
+        if (nome == null || nome.isBlank()) {
+            return Optional.empty();
+        }
+        String nomeNormalizado = nome.trim();
+        return objetosPorIdCanonico.values().stream()
+                .filter(objeto -> objeto.getNome().equalsIgnoreCase(nomeNormalizado))
+                .findFirst();
+    }
+
+    /**
      * Retorna o total de objetos espaciais únicos rastreados.
      *
      * @return quantidade de objetos únicos

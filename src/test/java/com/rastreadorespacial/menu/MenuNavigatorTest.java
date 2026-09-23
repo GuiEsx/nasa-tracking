@@ -4,6 +4,8 @@ import com.rastreadorespacial.api.RetryPolicy;
 import com.rastreadorespacial.api.SpaceDataClient;
 import com.rastreadorespacial.cache.RawDataStore;
 import com.rastreadorespacial.cache.SpaceDataService;
+import com.rastreadorespacial.domain.Asteroid;
+import com.rastreadorespacial.domain.Distance;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -78,6 +80,38 @@ class MenuNavigatorTest {
             tela.tratarEscolha("0");
             assertEquals(main, navigator.telaAtual(), tela.getNomeExibicao());
         }
+    }
+
+    @Test
+    void objetosProximosSoImprimeObjetosAposEscolha() {
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        MenuContext context = context(bytes);
+        context.registry().adicionar(new Asteroid("1", "Asteroide de teste", Distance.ofKilometers(100), false));
+        bytes.reset();
+        MenuNavigator navigator = new MenuNavigator(new DummyScreen("Início"), new Scanner(""), new PrintStream(bytes));
+        ObjetosProximosScreen screen = new ObjetosProximosScreen(navigator, context);
+
+        screen.exibir();
+        assertFalse(bytes.toString().contains("Asteroide de teste"));
+
+        screen.tratarEscolha("1");
+        assertTrue(bytes.toString().contains("Asteroide de teste"));
+    }
+
+    @Test
+    void rastrearObjetosSoImprimeObjetosAposEscolha() {
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        MenuContext context = context(bytes);
+        context.registry().adicionar(new Asteroid("1", "Asteroide de teste", Distance.ofKilometers(100), false));
+        bytes.reset();
+        MenuNavigator navigator = new MenuNavigator(new DummyScreen("Início"), new Scanner(""), new PrintStream(bytes));
+        RastrearObjetosScreen screen = new RastrearObjetosScreen(navigator, context);
+
+        screen.exibir();
+        assertFalse(bytes.toString().contains("Asteroide de teste"));
+
+        screen.tratarEscolha("1");
+        assertTrue(bytes.toString().contains("Asteroide de teste"));
     }
 
     private MenuContext context(ByteArrayOutputStream bytes) {

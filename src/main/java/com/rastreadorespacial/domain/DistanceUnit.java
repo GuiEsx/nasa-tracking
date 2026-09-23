@@ -17,6 +17,14 @@ public enum DistanceUnit {
     MILES(1.609344),
     LUNAR_DISTANCES(384_400.0);
 
+    public static DistanceUnit fromChoice(int escolha) {
+        return switch (escolha) {
+            case 2 -> MILES;
+            case 3 -> LUNAR_DISTANCES;
+            default -> KILOMETERS;
+        };
+    }
+
     private final double fatorParaKm;
 
     DistanceUnit(double fatorParaKm) {

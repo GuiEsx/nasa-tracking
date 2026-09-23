@@ -27,13 +27,14 @@ public final class RetratoDiarioScreen extends AbstractScreen {
         navigator.output().println("1 - Ver resumo textual do dia");
         navigator.output().println("2 - Ver estatísticas detalhadas");
         navigator.output().println("3 - Ver histórico de retratos anteriores");
+        navigator.output().println("4 - Ver foto e descrição do objeto do dia (APOD)");
         navigator.output().println("0 - Voltar");
         navigator.output().println("Digite sua escolha:");
     }
 
     @Override
     public void tratarEscolha(String entrada) {
-        Integer escolha = numero(entrada, 3);
+        Integer escolha = numero(entrada, 4);
         if (escolha == null) return;
         switch (escolha) {
             case 0 -> navigator.voltar();
@@ -44,7 +45,23 @@ public final class RetratoDiarioScreen extends AbstractScreen {
             }
             case 2 -> imprimirEstatisticas();
             case 3 -> imprimirHistorico();
+            case 4 -> imprimirApod();
             default -> { }
+        }
+    }
+
+    private void imprimirApod() {
+        MenuContext.ApodInfo apod = context.apod();
+        navigator.output().println("APOD - Foto astronômica do dia:");
+        if (apod == null) {
+            navigator.output().println("Dados do objeto do dia indisponíveis. Atualize o feed APOD primeiro.");
+            return;
+        }
+        navigator.output().println("Título: " + apod.titulo());
+        navigator.output().println("Data: " + apod.data());
+        navigator.output().println("Descrição: " + apod.explicacao());
+        if (!apod.url().isBlank()) {
+            navigator.output().println("Imagem: " + apod.url());
         }
     }
 

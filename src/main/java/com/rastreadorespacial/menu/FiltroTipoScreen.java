@@ -43,6 +43,6 @@ public final class FiltroTipoScreen extends AbstractScreen {
             default -> objeto -> false;
         };
         List<SpaceObject> filtrados = context.registry().listarTodos().stream().filter(filtro).toList();
-        ObjetosProximosScreen.imprimirOrdenados(filtrados, navigator.output());
+        ObjetosProximosScreen.imprimirOrdenados(filtrados, navigator.output(), context);
     }
 }

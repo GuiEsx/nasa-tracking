@@ -8,7 +8,7 @@ import com.rastreadorespacial.risk.PositionQuery;
 import java.util.List;
 
 public final class RegistrosDiariosScreen extends AbstractScreen {
-    private boolean aguardandoId;
+    private boolean aguardandoNome;
 
     public RegistrosDiariosScreen(MenuNavigator navigator, MenuContext context) {
         super(navigator, context);
@@ -25,32 +25,34 @@ public final class RegistrosDiariosScreen extends AbstractScreen {
         navigator.output().println("1 - Ver posição atual de todos os objetos localizáveis");
         navigator.output().println("2 - Ver posição atual de um objeto específico");
         navigator.output().println("3 - Ver objetos sem posição disponível");
+        navigator.output().println("4 - Definir unidade de distância");
         navigator.output().println("0 - Voltar");
         navigator.output().println("Digite sua escolha:");
     }
 
     @Override
     public void tratarEscolha(String entrada) {
-        if (aguardandoId) {
+        if (aguardandoNome) {
             if ("0".equals(entrada)) {
-                aguardandoId = false;
+                aguardandoNome = false;
                 navigator.voltar();
                 return;
             }
-            mostrarPosicaoPorId(entrada);
-            aguardandoId = false;
+            mostrarPosicaoPorNome(entrada);
+            aguardandoNome = false;
             return;
         }
-        Integer escolha = numero(entrada, 3);
+        Integer escolha = numero(entrada, 4);
         if (escolha == null) return;
         switch (escolha) {
             case 0 -> navigator.voltar();
             case 1 -> imprimirTodas();
             case 2 -> {
-                aguardandoId = true;
-                navigator.output().println("Digite o ID canônico do objeto (ou 0 para voltar):");
+                aguardandoNome = true;
+                navigator.output().println("Digite o nome do objeto (ou 0 para voltar):");
             }
             case 3 -> imprimirSemPosicao();
+            case 4 -> context.alterarUnidadeDistancia(navigator);
             default -> { }
         }
     }
@@ -64,20 +66,20 @@ public final class RegistrosDiariosScreen extends AbstractScreen {
         }
         for (SpaceObject objeto : objetos) {
             if (objeto instanceof Locatable localizable) {
-                navigator.output().println(" - " + MenuFormatters.posicao(objeto, localizable.getPosicaoAtual()));
+                navigator.output().println(" - " + MenuFormatters.posicao(objeto, localizable.getPosicaoAtual(), context.unidadeDistancia()));
             }
         }
     }
 
-    private void mostrarPosicaoPorId(String id) {
-        if ("0".equals(id)) return;
-        context.registry().buscarPorIdCanonico(id).ifPresentOrElse(objeto -> {
+    private void mostrarPosicaoPorNome(String nome) {
+        if ("0".equals(nome)) return;
+        context.registry().buscarPorNome(nome).ifPresentOrElse(objeto -> {
             if (objeto instanceof Locatable localizable) {
-                navigator.output().println(MenuFormatters.posicao(objeto, localizable.getPosicaoAtual()));
+                navigator.output().println(MenuFormatters.posicao(objeto, localizable.getPosicaoAtual(), context.unidadeDistancia()));
             } else {
                 navigator.output().println("Este objeto não possui posição disponível; isso é esperado para alguns tipos.");
             }
-        }, () -> navigator.output().println("Nenhum objeto encontrado com esse ID canônico."));
+        }, () -> navigator.output().println("Nenhum objeto encontrado com esse nome."));
     }
 
     private void imprimirSemPosicao() {

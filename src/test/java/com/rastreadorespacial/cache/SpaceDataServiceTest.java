@@ -110,6 +110,61 @@ class SpaceDataServiceTest {
     }
 
     @Test
+    void testFetchUsesLocalCacheWhenAvailable() throws IOException, SpaceApiException {
+        Path neowsDir = tempDir.resolve("neows");
+        Files.createDirectories(neowsDir);
+        Files.writeString(neowsDir.resolve("2026-09-20.json"), "{\"status\": \"local\"}");
+
+        SpaceDataClient mockRemoteClient = () -> {
+            throw new AssertionError("A API não deve ser chamada quando já existe cache local");
+        };
+
+        CachedDataResult result = service.fetch("neows", mockRemoteClient);
+
+        assertNotNull(result);
+        assertTrue(result.fromCache());
+        assertEquals("{\"status\": \"local\"}", result.rawJson());
+        assertEquals(LocalDate.of(2026, 9, 20), result.dataDoArquivo());
+    }
+
+    @Test
+    void testFetchForcaChamadaApiMesmoComCache() throws IOException, SpaceApiException {
+        Path neowsDir = tempDir.resolve("neows");
+        Files.createDirectories(neowsDir);
+        Files.writeString(neowsDir.resolve("2026-09-20.json"), "{\"status\": \"local\"}");
+        AtomicInteger chamadas = new AtomicInteger();
+        SpaceDataClient client = () -> {
+            chamadas.incrementAndGet();
+            return "{\"status\": \"api\"}";
+        };
+
+        CachedDataResult result = service.fetch("neows", client, true);
+
+        assertEquals(1, chamadas.get());
+        assertFalse(result.fromCache());
+        assertEquals("{\"status\": \"api\"}", result.rawJson());
+    }
+
+    @Test
+    void testFetchForcadaUsaCacheQuandoApiAtingeLimite() throws IOException, SpaceApiException {
+        Path apodDir = tempDir.resolve("apod");
+        Files.createDirectories(apodDir);
+        Files.writeString(apodDir.resolve("2026-09-20.json"), "{\"title\": \"Foto em cache\"}");
+        AtomicInteger chamadas = new AtomicInteger();
+        SpaceDataClient client = () -> {
+            chamadas.incrementAndGet();
+            throw new SpaceApiException(429, "Rate limit persistente");
+        };
+
+        CachedDataResult result = service.fetch("apod", client, true);
+
+        assertEquals(3, chamadas.get());
+        assertTrue(result.fromCache());
+        assertTrue(result.persistentRateLimit());
+        assertEquals("{\"title\": \"Foto em cache\"}", result.rawJson());
+    }
+
+    @Test
     void testFetchFailureWithoutCacheThrowsException() {
         SpaceDataClient mockFailingClient = () -> {
             throw new SpaceApiException(429, "Rate Limit Exceeded");

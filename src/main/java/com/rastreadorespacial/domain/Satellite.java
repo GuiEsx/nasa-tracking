@@ -72,8 +72,16 @@ public final class Satellite implements SpaceObject, Locatable, HasDistance {
 
     @Override
     public Optional<Distance> getDistanciaDeReferencia() {
-        // Para satélites orbitais em LEO, a distância de aproximação à Terra não é uma aproximação astronômica
-        return Optional.empty();
+        return Optional.of(calcularDistanciaOrbitalReferencia());
+    }
+
+    private Distance calcularDistanciaOrbitalReferencia() {
+        double altitudeKm = 420.0;
+        if (movimentoMedioRevDia != null && movimentoMedioRevDia > 0) {
+            altitudeKm = Math.max(150.0, Math.min(36000.0,
+                    6371.0 * (Math.pow(15.5 / movimentoMedioRevDia, 2.0 / 3.0) - 1.0) + 420.0));
+        }
+        return Distance.ofKilometers(altitudeKm);
     }
 
     public Double getInclinacaoGraus() {
@@ -131,7 +139,7 @@ public final class Satellite implements SpaceObject, Locatable, HasDistance {
     public String toString() {
         return String.format("Satélite '%s' (ID: %s) - Decaimento Diário: %s - Risco: %s",
                 nome, id,
-                decaimentoOrbitalDiario != null ? decaimentoOrbitalDiario.toString() : "N/D",
+                decaimentoOrbitalDiario != null ? String.format(Locale.US, "%.3f", decaimentoOrbitalDiario) : "N/D",
                 avaliarRisco());
     }
 }
